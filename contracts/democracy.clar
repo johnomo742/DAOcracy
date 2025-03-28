@@ -6,6 +6,9 @@
 (define-constant ERR-INSUFFICIENT-FUNDS (err u101))
 (define-constant ERR-PROPOSAL-NOT-FOUND (err u102))
 (define-constant ERR-INVALID-PROPOSAL (err u103))
+(define-constant ERR-INVALID-AMOUNT (err u104))
+(define-constant ERR-INVALID-VOTING-PERIOD (err u105))
+(define-constant ERR-INVALID-QUORUM (err u106))
 
 ;; Proposal Status Constants
 (define-constant PROPOSAL-STATUS-PENDING u0)
@@ -13,6 +16,14 @@
 (define-constant PROPOSAL-STATUS-PASSED u2)
 (define-constant PROPOSAL-STATUS-REJECTED u3)
 (define-constant PROPOSAL-STATUS-EXECUTED u4)
+
+;; Governance Parameters
+(define-constant MAX-DESCRIPTION-LENGTH u500)
+(define-constant MAX-FUNCTION-NAME-LENGTH u100)
+(define-constant MIN-VOTING-PERIOD u10)
+(define-constant MAX-VOTING-PERIOD u1000)
+(define-constant MAX-GOVERNANCE-MINT u10000)
+(define-constant MAX-QUORUM u1000000)
 
 ;; DAO Proposal Structure
 (define-map Proposals
@@ -40,6 +51,52 @@
 ;; Track Next Proposal ID
 (define-data-var next-proposal-id uint u0)
 
+;; Validation Functions
+(define-private (is-valid-description (desc (string-utf8 500)))
+  (and 
+    (> (len desc) u0)
+    (<= (len desc) MAX-DESCRIPTION-LENGTH)
+  )
+)
+
+(define-private (is-valid-voting-period (period uint))
+  (and 
+    (>= period MIN-VOTING-PERIOD)
+    (<= period MAX-VOTING-PERIOD)
+  )
+)
+
+(define-private (is-valid-amount (amount uint))
+  (and 
+    (> amount u0)
+    (<= amount MAX-GOVERNANCE-MINT)
+  )
+)
+
+(define-private (is-valid-quorum (quorum uint))
+  (and 
+    (> quorum u0)
+    (<= quorum MAX-QUORUM)
+  )
+)
+
+(define-private (is-valid-target-contract (contract (optional principal)))
+  (match contract
+    some-contract (not (is-eq some-contract tx-sender))
+    true
+  )
+)
+
+(define-private (is-valid-executable-function (func (optional (string-utf8 100))))
+  (match func
+    some-func (and 
+      (> (len some-func) u0)
+      (<= (len some-func) MAX-FUNCTION-NAME-LENGTH)
+    )
+    true
+  )
+)
+
 ;; Read-only functions to get proposal and token balance
 (define-read-only (get-proposal (proposal-id uint))
   (map-get? Proposals { proposal-id: proposal-id })
@@ -52,7 +109,12 @@
 ;; Mint Governance Tokens
 (define-public (mint-governance-tokens (amount uint) (recipient principal))
   (begin
-    (try! (is-authorized-governance-creator tx-sender))
+    ;; Validate inputs
+    (asserts! (is-authorized-governance-creator tx-sender) ERR-UNAUTHORIZED)
+    (asserts! (is-valid-amount amount) ERR-INVALID-AMOUNT)
+    (asserts! (not (is-eq recipient tx-sender)) ERR-UNAUTHORIZED)
+    
+    ;; Mint tokens
     (map-set GovernanceTokens 
       recipient 
       (+ (get-token-balance recipient) amount)
@@ -74,6 +136,12 @@
       (proposal-id (var-get next-proposal-id))
       (current-block block-height)
     )
+    ;; Validate inputs
+    (asserts! (is-valid-description description) ERR-INVALID-PROPOSAL)
+    (asserts! (is-valid-voting-period voting-period) ERR-INVALID-VOTING-PERIOD)
+    (asserts! (is-valid-quorum required-quorum) ERR-INVALID-QUORUM)
+    (asserts! (is-valid-target-contract target-contract) ERR-UNAUTHORIZED)
+    (asserts! (is-valid-executable-function executable-function) ERR-INVALID-PROPOSAL)
     (asserts! (> (get-token-balance tx-sender) u0) ERR-UNAUTHORIZED)
     
     ;; Create proposal mapping
@@ -111,7 +179,7 @@
       (proposal (unwrap! (get-proposal proposal-id) ERR-PROPOSAL-NOT-FOUND))
     )
     
-    ;; Validate voting period and voter's token balance
+    ;; Validate voting conditions
     (asserts! (> voter-balance u0) ERR-UNAUTHORIZED)
     (asserts! 
       (and 
@@ -192,8 +260,5 @@
 
 ;; Authorization helper
 (define-private (is-authorized-governance-creator (sender principal))
-  (if (is-eq sender CONTRACT-OWNER)
-    (ok true)
-    ERR-UNAUTHORIZED
-  )
+  (is-eq sender CONTRACT-OWNER)
 )
