@@ -7,14 +7,12 @@
 (define-constant ERR-PROPOSAL-NOT-FOUND (err u102))
 (define-constant ERR-INVALID-PROPOSAL (err u103))
 
-;; DAO Proposal Status
-(define-enum ProposalStatus
-  Pending
-  Active
-  Passed
-  Rejected
-  Executed
-)
+;; Proposal Status Constants
+(define-constant PROPOSAL-STATUS-PENDING u0)
+(define-constant PROPOSAL-STATUS-ACTIVE u1)
+(define-constant PROPOSAL-STATUS-PASSED u2)
+(define-constant PROPOSAL-STATUS-REJECTED u3)
+(define-constant PROPOSAL-STATUS-EXECUTED u4)
 
 ;; DAO Proposal Structure
 (define-map Proposals
@@ -24,7 +22,7 @@
     description: (string-utf8 500),
     voting-start: uint,
     voting-end: uint,
-    status: ProposalStatus,
+    status: uint,
     votes-for: uint,
     votes-against: uint,
     required-quorum: uint,
@@ -86,7 +84,7 @@
         description: description,
         voting-start: current-block,
         voting-end: (+ current-block voting-period),
-        status: Pending,
+        status: PROPOSAL-STATUS-PENDING,
         votes-for: u0,
         votes-against: u0,
         required-quorum: required-quorum,
@@ -167,26 +165,24 @@
         ;; Update proposal status to Passed
         (map-set Proposals 
           { proposal-id: proposal-id }
-          (merge proposal { status: Passed })
+          (merge proposal { status: PROPOSAL-STATUS-PASSED })
         )
         
         ;; Optional: Execute associated contract function
         (match (get target-contract proposal)
           contract-address 
             (match (get executable-function proposal)
-              func-name 
-                ;; Placeholder for potential cross-contract call
-                (ok true)
-              none (ok true)
+              func-name (ok true)
+              (ok true)
             )
-          none (ok true)
+          (ok true)
         )
       )
       ;; If proposal fails
       (begin
         (map-set Proposals 
           { proposal-id: proposal-id }
-          (merge proposal { status: Rejected })
+          (merge proposal { status: PROPOSAL-STATUS-REJECTED })
         )
         (ok false)
       )
