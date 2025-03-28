@@ -18,19 +18,17 @@
 
 ;; DAO Proposal Structure
 (define-map Proposals
+  { proposal-id: uint }
   {
-    proposal-id: uint
-  }
-  {
-    creator: principal
-    description: (string-utf8 500)
-    voting-start: uint
-    voting-end: uint
-    status: ProposalStatus
-    votes-for: uint
-    votes-against: uint
-    required-quorum: uint
-    target-contract: (optional principal)
+    creator: principal,
+    description: (string-utf8 500),
+    voting-start: uint,
+    voting-end: uint,
+    status: ProposalStatus,
+    votes-for: uint,
+    votes-against: uint,
+    required-quorum: uint,
+    target-contract: (optional principal),
     executable-function: (optional (string-utf8 100))
   }
 )
@@ -46,7 +44,7 @@
 
 ;; Read-only functions to get proposal and token balance
 (define-read-only (get-proposal (proposal-id uint))
-  (map-get? Proposals {proposal-id: proposal-id})
+  (map-get? Proposals { proposal-id: proposal-id })
 )
 
 (define-read-only (get-token-balance (account principal))
@@ -82,17 +80,17 @@
     
     ;; Create proposal mapping
     (map-set Proposals 
-      {proposal-id: proposal-id}
+      { proposal-id: proposal-id }
       {
-        creator: tx-sender
-        description: description
-        voting-start: current-block
-        voting-end: (+ current-block voting-period)
-        status: ProposalStatus.Pending
-        votes-for: u0
-        votes-against: u0
-        required-quorum: required-quorum
-        target-contract: target-contract
+        creator: tx-sender,
+        description: description,
+        voting-start: current-block,
+        voting-end: (+ current-block voting-period),
+        status: Pending,
+        votes-for: u0,
+        votes-against: u0,
+        required-quorum: required-quorum,
+        target-contract: target-contract,
         executable-function: executable-function
       }
     )
@@ -128,13 +126,13 @@
     ;; Update proposal votes
     (if vote-type
       (map-set Proposals 
-        {proposal-id: proposal-id}
+        { proposal-id: proposal-id }
         (merge proposal {
           votes-for: (+ (get votes-for proposal) voter-balance)
         })
       )
       (map-set Proposals 
-        {proposal-id: proposal-id}
+        { proposal-id: proposal-id }
         (merge proposal {
           votes-against: (+ (get votes-against proposal) voter-balance)
         })
@@ -168,8 +166,8 @@
       (begin
         ;; Update proposal status to Passed
         (map-set Proposals 
-          {proposal-id: proposal-id}
-          (merge proposal {status: ProposalStatus.Passed})
+          { proposal-id: proposal-id }
+          (merge proposal { status: Passed })
         )
         
         ;; Optional: Execute associated contract function
@@ -178,7 +176,6 @@
             (match (get executable-function proposal)
               func-name 
                 ;; Placeholder for potential cross-contract call
-                ;; In a real implementation, this would invoke the specific function
                 (ok true)
               none (ok true)
             )
@@ -188,8 +185,8 @@
       ;; If proposal fails
       (begin
         (map-set Proposals 
-          {proposal-id: proposal-id}
-          (merge proposal {status: ProposalStatus.Rejected})
+          { proposal-id: proposal-id }
+          (merge proposal { status: Rejected })
         )
         (ok false)
       )
